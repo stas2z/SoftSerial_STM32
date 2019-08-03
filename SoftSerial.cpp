@@ -345,12 +345,6 @@ SoftSerial::~SoftSerial ()
   end ();
 }
 
-void inline
-flipled (uint8_t * led)
-{
-  *led = *led == LOW ? HIGH : LOW;
-}
-
 /******************************************************************************
 * TX and RX Interrupt Service Routines
 ******************************************************************************/
