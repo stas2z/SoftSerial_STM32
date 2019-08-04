@@ -533,7 +533,6 @@ SoftSerial::begin (uint32_t tBaud)
   tw (HIGH);
   pinMode (receivePin, INPUT_PULLUP);
   pinMode (transmitPin, OUTPUT);
-  pinMode (LED_BUILTIN, OUTPUT);
 
 #if DEBUG_DELAY
   pinMode (DEBUG_PIN, OUTPUT);
