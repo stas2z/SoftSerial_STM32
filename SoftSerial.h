@@ -246,7 +246,7 @@ public:
   virtual int available ();
   virtual void flush ();
   uint16_t isTXInt ();
-  operator    bool ()
+  operator     bool ()
   {
     return true;
   }

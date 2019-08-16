@@ -119,30 +119,32 @@ SoftSerial *
   SoftSerial::interruptObject4;
 
 
-voidFuncPtr
-  SoftSerial::handleRXEdgeInterruptP[4] = {
-  handleRXEdgeInterrupt1, handleRXEdgeInterrupt2, handleRXEdgeInterrupt3,
-  handleRXEdgeInterrupt4
-};
+voidFuncPtr SoftSerial::handleRXEdgeInterruptP[4] =
+{
+handleRXEdgeInterrupt1, handleRXEdgeInterrupt2, handleRXEdgeInterrupt3,
+    handleRXEdgeInterrupt4};
 
-voidFuncPtr
-  SoftSerial::handleRXBitInterruptP[4] = {
-  handleRXBitInterrupt1, handleRXBitInterrupt2, handleRXBitInterrupt3,
-  handleRXBitInterrupt4
-};
+voidFuncPtr SoftSerial::handleRXBitInterruptP[4] =
+{
+handleRXBitInterrupt1, handleRXBitInterrupt2, handleRXBitInterrupt3,
+    handleRXBitInterrupt4};
 
-voidFuncPtr
-  SoftSerial::handleTXBitInterruptP[4] = {
-  handleTXBitInterrupt1, handleTXBitInterrupt2, handleTXBitInterrupt3,
-  handleTXBitInterrupt4
-};
+voidFuncPtr SoftSerial::handleTXBitInterruptP[4] =
+{
+handleTXBitInterrupt1, handleTXBitInterrupt2, handleTXBitInterrupt3,
+    handleTXBitInterrupt4};
 
 inline __always_inline void
 SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
 {
   _rx_channel = RX_CHANNEL;
   _tx_channel = TX_CHANNEL;
-  switch (RX_CHANNEL)
+  if (_rx_channel == _tx_channel)
+    {
+      _rx_channel = _RX_CHANNEL;
+      _tx_channel = _TX_CHANNEL;
+    }
+  switch (_rx_channel)
     {
     case 1:
       RX_TIMER_CHANNEL = TIMER_CH1;
@@ -166,7 +168,7 @@ SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
       RX_TIMER_PENDING = TIMER_SR_CC4IF_BIT;
       break;
     }
-  switch (TX_CHANNEL)
+  switch (_tx_channel)
     {
     case 1:
       TX_TIMER_CHANNEL = TIMER_CH1;
@@ -219,8 +221,7 @@ SoftSerial::isTXInterruptEnabled ()
   return (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
 }
 
-uint16_t
-SoftSerial::isTXInt ()
+uint16_t SoftSerial::isTXInt ()
 {
   return (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
 }
@@ -705,8 +706,7 @@ SoftSerial::begin (uint32_t tBaud)
 ******************************************************************************/
 // Sets current instance listening. Transmit is always enabled
 // If his instance was already activeRX does nothing and returns false 
-bool
-SoftSerial::listen ()
+bool SoftSerial::listen ()
 {
 
   // If receive not activeRX then re-init and set activeRX
@@ -732,8 +732,7 @@ SoftSerial::listen ()
 // This instance will stop all RX interrupts after current in-process
 // byte is finished receiving (if any).
 // If no in-process receive byte it stops immediately
-bool
-SoftSerial::stopListening ()
+bool SoftSerial::stopListening ()
 {
 
   if (activeRX)
@@ -865,8 +864,7 @@ SoftSerial::peek ()
 ******************************************************************************/
 // Sets current instance enabled for sending
 // If his instance was already activeRX does nothing and returns false 
-bool
-SoftSerial::talk ()
+bool SoftSerial::talk ()
 {
 
   // If transmit not active then re-init and set activeTX
@@ -890,8 +888,7 @@ SoftSerial::talk ()
 // or "stopListening" for rx
 // Returns true if sending already enabled when called
 // This instance will stop sending at end of current byte immediately 
-bool
-SoftSerial::stopTalking ()
+bool SoftSerial::stopTalking ()
 {
 
   if (activeTX)
@@ -911,8 +908,7 @@ SoftSerial::stopTalking ()
 // Virtual write
 // Saves tx byte in buffer and restarts transmit delay timer
 // 1 bit time latency prior to transmit start if buffer was empty
-size_t
-SoftSerial::write (uint8_t b)
+size_t SoftSerial::write (uint8_t b)
 {
   if (txBitCount == 9)
     {
@@ -941,7 +937,8 @@ SoftSerial::write (uint8_t b)
     {
 
       // Blocks if buffer full
-      bool i;
+      bool
+	i;
       do
 	{
 	  i =
