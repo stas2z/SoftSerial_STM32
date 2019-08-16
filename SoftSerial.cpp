@@ -91,15 +91,19 @@ License
 * Timer Definitions
 * Change these if you wish to use different timer channels
 ******************************************************************************/
+
 #define TIMER_MAX_COUNT   0xffff
-#define TX_TIMER_CHANNEL  TIMER_CH3
-#define TX_TIMER_MASK     TIMER_DIER_CC3IE_BIT
-#define TX_TIMER_PENDING  TIMER_SR_CC3IF_BIT
-#define TX_CCR            CCR3
-#define RX_TIMER_CHANNEL  TIMER_CH4
-#define RX_TIMER_MASK     TIMER_DIER_CC4IE_BIT
-#define RX_TIMER_PENDING  TIMER_SR_CC4IF_BIT
-#define RX_CCR            CCR4
+#define _TX_CHANNEL 3
+#define _RX_CHANNEL 4
+
+//#define TX_TIMER_CHANNEL  TIMER_CH3
+//#define TX_TIMER_MASK     TIMER_DIER_CC3IE_BIT
+//#define TX_TIMER_PENDING  TIMER_SR_CC3IF_BIT
+//#define TX_CCR            CCR3
+//#define RX_TIMER_CHANNEL  TIMER_CH4
+//#define RX_TIMER_MASK     TIMER_DIER_CC4IE_BIT
+//#define RX_TIMER_PENDING  TIMER_SR_CC4IF_BIT
+//#define RX_CCR            CCR4
 
 /******************************************************************************
 * ISR Related to Statics
@@ -133,6 +137,60 @@ voidFuncPtr
   handleTXBitInterrupt4
 };
 
+inline __always_inline void
+SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
+{
+  _rx_channel = RX_CHANNEL;
+  _tx_channel = TX_CHANNEL;
+  switch (RX_CHANNEL)
+    {
+    case 1:
+      RX_TIMER_CHANNEL = TIMER_CH1;
+      RX_TIMER_MASK = TIMER_DIER_CC1IE_BIT;
+      RX_TIMER_PENDING = TIMER_SR_CC1IF_BIT;
+      break;
+    case 2:
+      RX_TIMER_CHANNEL = TIMER_CH2;
+      RX_TIMER_MASK = TIMER_DIER_CC2IE_BIT;
+      RX_TIMER_PENDING = TIMER_SR_CC2IF_BIT;
+      break;
+    case 3:
+      RX_TIMER_CHANNEL = TIMER_CH3;
+      RX_TIMER_MASK = TIMER_DIER_CC3IE_BIT;
+      RX_TIMER_PENDING = TIMER_SR_CC3IF_BIT;
+      break;
+    case 4:
+    default:
+      RX_TIMER_CHANNEL = TIMER_CH4;
+      RX_TIMER_MASK = TIMER_DIER_CC4IE_BIT;
+      RX_TIMER_PENDING = TIMER_SR_CC4IF_BIT;
+      break;
+    }
+  switch (TX_CHANNEL)
+    {
+    case 1:
+      TX_TIMER_CHANNEL = TIMER_CH1;
+      TX_TIMER_MASK = TIMER_DIER_CC1IE_BIT;
+      TX_TIMER_PENDING = TIMER_SR_CC1IF_BIT;
+      break;
+    case 2:
+      TX_TIMER_CHANNEL = TIMER_CH2;
+      TX_TIMER_MASK = TIMER_DIER_CC2IE_BIT;
+      TX_TIMER_PENDING = TIMER_SR_CC2IF_BIT;
+      break;
+    default:
+    case 3:
+      TX_TIMER_CHANNEL = TIMER_CH3;
+      TX_TIMER_MASK = TIMER_DIER_CC3IE_BIT;
+      TX_TIMER_PENDING = TIMER_SR_CC3IF_BIT;
+      break;
+    case 4:
+      TX_TIMER_CHANNEL = TIMER_CH4;
+      TX_TIMER_MASK = TIMER_DIER_CC4IE_BIT;
+      TX_TIMER_PENDING = TIMER_SR_CC4IF_BIT;
+      break;
+    }
+}
 
 /******************************************************************************
 * Convenience functions to disable/enable tx and rx interrupts
@@ -320,12 +378,15 @@ SoftSerial::setInterruptObject (uint8_t timerNumber)
 * Constructor / Destructor
 ******************************************************************************/
 // Constructor
-SoftSerial::SoftSerial (int receivePinT = 15, int transmitPinT = 16, uint8_t rxtxTimerT = 1):
+SoftSerial::SoftSerial (int receivePinT = 15, int transmitPinT = 16, uint8_t rxtxTimerT = 1, uint8_t tx_channel = _TX_CHANNEL, uint8_t rx_channel = _RX_CHANNEL):
 receivePin (receivePinT),
 transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
 {
+  init_timer_values (tx_channel, rx_channel);
+
   // Assign pointer to the hardware registers
   timerSerialDEV = timerSerial.c_dev ();
+
 
   // Translate transmit pin number to external interrupt number
   txport = PIN_MAP[transmitPin].gpio_device;
@@ -338,6 +399,26 @@ transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
 
 }
 
+SoftSerial::SoftSerial (int receivePinT = 15, int transmitPinT = 16, uint8_t rxtxTimerT = 1):
+receivePin (receivePinT),
+transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
+{
+  init_timer_values (_TX_CHANNEL, _RX_CHANNEL);
+
+  // Assign pointer to the hardware registers
+  timerSerialDEV = timerSerial.c_dev ();
+
+
+  // Translate transmit pin number to external interrupt number
+  txport = PIN_MAP[transmitPin].gpio_device;
+  txbit = PIN_MAP[transmitPin].gpio_bit;
+  gpioBit = (exti_num) (txbit);
+
+  // Setup ISR pointer for this instance and timer (one timer per instance)
+  // This is a workaround for c++
+  setInterruptObject (rxtxTimer);
+
+}
 
 // Destructor
 SoftSerial::~SoftSerial ()
@@ -361,8 +442,8 @@ SoftSerial::txNextBit (void)
 	tw (LOW);
 
       timerSerial.setCompare (TX_TIMER_CHANNEL,
-			      ((uint16_t) (timerSerialDEV->regs).gen->
-			       TX_CCR) + bitPeriod);
+			      timer_get_compare (timerSerialDEV,
+						 _tx_channel) + bitPeriod);
 
       interrupts ();
       // Bump the bit/state counter to state 8
@@ -390,8 +471,8 @@ SoftSerial::txNextBit (void)
 	{
 
 	  timerSerial.setCompare (TX_TIMER_CHANNEL,
-				  ((uint16_t) (timerSerialDEV->regs).gen->
-				   TX_CCR) + bitPeriod);
+				  timer_get_compare
+				  (timerSerialDEV, _tx_channel) + bitPeriod);
 	  txBitCount = 10;
 
 	}
@@ -411,8 +492,8 @@ SoftSerial::txNextBit (void)
       interrupts ();
 
       timerSerial.setCompare (TX_TIMER_CHANNEL,
-			      ((uint16_t) (timerSerialDEV->regs).gen->
-			       TX_CCR) + bitPeriod);
+			      timer_get_compare
+			      (timerSerialDEV, _tx_channel) + bitPeriod);
 
       txBitCount = 0;
     }
@@ -458,8 +539,8 @@ SoftSerial::rxNextBit (void)
     {
 
       timerSerial.setCompare (RX_TIMER_CHANNEL,
-			      ((uint16_t) (timerSerialDEV->regs.gen->RX_CCR) +
-			       bitPeriod));
+			      timer_get_compare
+			      (timerSerialDEV, _rx_channel) + bitPeriod);
 
       receiveBuffer[receiveBufferWrite] >>= 1;
       if (digitalRead (receivePin))
@@ -826,7 +907,6 @@ SoftSerial::stopTalking ()
     return false;
 
 }
-
 
 // Virtual write
 // Saves tx byte in buffer and restarts transmit delay timer

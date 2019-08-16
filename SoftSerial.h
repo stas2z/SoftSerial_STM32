@@ -98,7 +98,7 @@ License
 #define  SSI_TX_BUFF_SIZE 128
 #define SS_MAX_RX_BUFF (SSI_RX_BUFF_SIZE - 1)	// RX buffer size
 #define SS_MAX_TX_BUFF (SSI_TX_BUFF_SIZE - 1)	// TX buffer size
-#define _SSI_VERSION   1.1	// Library Version
+#define _SSI_VERSION   1.2	// Library Version
 
 /******************************************************************************
 * Class Definition
@@ -119,6 +119,10 @@ private:
   bool activeRX;
   bool activeTX;
   uint8_t lS = LOW;
+  uint8_t _rx_channel, _tx_channel;
+  uint8_t TX_TIMER_CHANNEL, TX_TIMER_MASK, TX_TIMER_PENDING;
+  uint8_t RX_TIMER_CHANNEL, RX_TIMER_MASK, RX_TIMER_PENDING;
+
 
 #if DEBUG_DELAY
   volatile uint8_t overFlowTail;
@@ -193,6 +197,7 @@ private:
   inline void rxNextBit (void) __attribute__ ((__always_inline__));
   inline void txNextBit (void) __attribute__ ((__always_inline__));
   inline uint16_t isTXInterruptEnabled () __attribute__ ((__always_inline__));
+  inline void init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL);
 
   void setInterruptObject (uint8_t timerNumber);
 
@@ -200,6 +205,10 @@ public:
   // Public Methods
     SoftSerial (int receivePinT, int transmitPinT,
 		uint8_t rxtxTimerT /*, bool inverseLogic */ );
+
+    SoftSerial (int receivePinT, int transmitPinT,
+		uint8_t rxtxTimerT, uint8_t tx_channel,
+		uint8_t rx_channel /*, bool inverseLogic */ );
 
    ~SoftSerial ();
 
@@ -231,14 +240,13 @@ public:
   }
   int readnb ();		// Non-blocking read
   volatile int8_t txBitCount;
-
   virtual int peek ();
   virtual size_t write (uint8_t byte);
   virtual int read ();
   virtual int available ();
   virtual void flush ();
   uint16_t isTXInt ();
-  operator  bool ()
+  operator    bool ()
   {
     return true;
   }
