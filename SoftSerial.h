@@ -1,5 +1,12 @@
 #ifndef SoftSerial_h
 #define SoftSerial_h
+#if defined(ARDUINO_ARCH_STM32F1)
+#define BMAP
+#elif defined(ARDUINO_ARCH_STM32)
+#define BHAL
+#else
+#error Core not supported
+#endif
 
 /******************************************************************************
 * SoftSerial.cpp
@@ -81,11 +88,14 @@ License
 * SOFTWARE.
  *****************************************************************************/
 
-#include <libmaple/libmaple.h>
 #include <Arduino.h>
 
-#include <HardwareTimer.h>
+#ifdef BMAP
+#include <libmaple/libmaple.h>
 #include <ext_interrupts.h>
+#endif
+
+#include <HardwareTimer.h>
 
 /******************************************************************************
 * Definitions
@@ -93,6 +103,12 @@ License
 #define DEBUG_DELAY 0
 #define DEBUG_PIN 17
 #define DEBUG_PIN1 18
+#ifdef BHAL
+typedef void (*voidFuncPtr) (void);
+typedef void (*htFuncPtr) (HardwareTimer *);
+#else
+#define htFuncPtr voidFuncPtr
+#endif
 
 #define  SSI_RX_BUFF_SIZE 128
 #define  SSI_TX_BUFF_SIZE 128
@@ -109,12 +125,19 @@ private:
 
   // Per object data
   uint8_t transmitPin;
+#ifdef BMAP
   gpio_dev *txport;
-  uint8_t txbit;
   exti_num gpioBit;
-  uint8_t receivePin;
   HardwareTimer timerSerial;
   timer_dev *timerSerialDEV;
+#else
+  GPIO_TypeDef *txport;
+  uint8_t gpioBit;
+  HardwareTimer *timerSerial;
+  TIM_TypeDef *timerSerialDEV;
+#endif
+  uint8_t txbit;
+  uint8_t receivePin;
   uint8_t rxtxTimer;
   bool activeRX;
   bool activeTX;
@@ -122,7 +145,7 @@ private:
   uint8_t _rx_channel, _tx_channel;
   uint8_t TX_TIMER_CHANNEL, TX_TIMER_MASK, TX_TIMER_PENDING;
   uint8_t RX_TIMER_CHANNEL, RX_TIMER_MASK, RX_TIMER_PENDING;
-
+// debug counters
 
 #if DEBUG_DELAY
   volatile uint8_t overFlowTail;
@@ -149,39 +172,51 @@ private:
   static SoftSerial *interruptObject2;	// interrupt latency a small amount
   static SoftSerial *interruptObject3;
   static SoftSerial *interruptObject4;
-  static voidFuncPtr handleRXEdgeInterruptP[4];
-  static voidFuncPtr handleRXBitInterruptP[4];
-  static voidFuncPtr handleTXBitInterruptP[4];
+
+#define STT static
+
+  STT voidFuncPtr handleRXEdgeInterruptP[4];
+  STT htFuncPtr handleRXBitInterruptP[4];
+  STT htFuncPtr handleTXBitInterruptP[4];
 
 
   // Static Methods
   // Better way to do this?
-  static inline void handleRXBitInterrupt1 ()
+#ifdef BHAL
+#define HTIM HardwareTimer *
+#else
+#define HTIM void
+#endif
+
+  STT inline void handleRXBitInterrupt1 (HTIM)
     __attribute__ ((__always_inline__));
-  static inline void handleRXEdgeInterrupt1 ()
-    __attribute__ ((__always_inline__));
-  static inline void handleTXBitInterrupt1 ()
+  STT inline void handleTXBitInterrupt1 (HTIM)
     __attribute__ ((__always_inline__));
 
-  static inline void handleRXBitInterrupt2 ()
+  STT inline void handleRXBitInterrupt2 (HTIM)
     __attribute__ ((__always_inline__));
-  static inline void handleRXEdgeInterrupt2 ()
-    __attribute__ ((__always_inline__));
-  static inline void handleTXBitInterrupt2 ()
+  STT inline void handleTXBitInterrupt2 (HTIM)
     __attribute__ ((__always_inline__));
 
-  static inline void handleRXBitInterrupt3 ()
+  STT inline void handleRXBitInterrupt3 (HTIM)
     __attribute__ ((__always_inline__));
-  static inline void handleRXEdgeInterrupt3 ()
-    __attribute__ ((__always_inline__));
-  static inline void handleTXBitInterrupt3 ()
+  STT inline void handleTXBitInterrupt3 (HTIM)
     __attribute__ ((__always_inline__));
 
-  static inline void handleRXBitInterrupt4 ()
+  STT inline void handleRXBitInterrupt4 (HTIM)
     __attribute__ ((__always_inline__));
-  static inline void handleRXEdgeInterrupt4 ()
+  STT inline void handleTXBitInterrupt4 (HTIM)
     __attribute__ ((__always_inline__));
-  static inline void handleTXBitInterrupt4 ()
+
+#undef HTIM
+
+  STT inline void handleRXEdgeInterrupt1 ()
+    __attribute__ ((__always_inline__));
+  STT inline void handleRXEdgeInterrupt2 ()
+    __attribute__ ((__always_inline__));
+  STT inline void handleRXEdgeInterrupt3 ()
+    __attribute__ ((__always_inline__));
+  STT inline void handleRXEdgeInterrupt4 ()
     __attribute__ ((__always_inline__));
 
   // Private Methods
@@ -212,11 +247,23 @@ public:
 
    ~SoftSerial ();
 
+  uint32_t rxedgec, rxbitc, txbitc;
   uint32_t tt = millis ();
+  String s_dbg = "";
+  void dbg (String p)
+  {
+    s_dbg += "[" + String (millis ()) + "] " + p + "\n";
+  }
+  void p_dbg (HardwareSerial * S)
+  {
+    S->print (s_dbg);
+    s_dbg = "";
+  }
   static int library_version ()
   {
     return _SSI_VERSION;
   }
+  void print_counters (HardwareSerial * S);
   void begin (uint32_t tBaud);
   bool listen ();
   bool isListening ()
@@ -240,13 +287,14 @@ public:
   }
   int readnb ();		// Non-blocking read
   volatile int8_t txBitCount;
+
   virtual int peek ();
   virtual size_t write (uint8_t byte);
   virtual int read ();
   virtual int available ();
   virtual void flush ();
   uint16_t isTXInt ();
-  operator     bool ()
+  operator   bool ()
   {
     return true;
   }

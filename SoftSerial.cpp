@@ -80,12 +80,55 @@ License
 
 #include <Arduino.h>
 #include <HardwareTimer.h>
+#ifdef BMAP
 #include <libmaple/timer.h>
 #include <ext_interrupts.h>
+#endif
 #include "SoftSerial.h"
+
+#ifdef BMAP
+#define T_PAUSE timerSerial.pause
+#define T_DINT timerSerial.detachInterrupt
+#define T_AINT timerSerial.attachInterrupt
+#define T_SMODE timerSerial.setMode
+#define T_SETOF timerSerial.setOverflow
+#define T_RESUM timerSerial.resume
+#define T_GCOMP timerSerial.getCompare
+#define T_SCOMP timerSerial.setCompare
+#define T_GCNT timerSerial.getCount
+#define T_SCNT timerSerial.setCount
+#define T_RFRESH timerSerial.refresh
+#define T_SPSCALE timerSerial.setPrescaleFactor
+#define T_GPSCALE timerSerial.getPrescaleFactor
+
+#define gw(a, b, c) WRITE_REG((a)->BSRR, (1U << (b)) << (16 * !(c)))
 
 #define bw(a, b) (PIN_MAP[(a)].gpio_device)->regs->BSRR = (1U << PIN_MAP[(a)].gpio_bit) << (16 * !(b))
 #define tw(c) txport->regs->BSRR = (1U << txbit) << (16 * !(c))
+
+#else
+#define T_PAUSE timerSerial->pause
+#define T_DINT timerSerial->detachInterrupt
+#define T_AINT timerSerial->attachInterrupt
+#define T_SMODE timerSerial->setMode
+#define T_SETOF timerSerial->setOverflow
+#define T_RESUM timerSerial->resume
+#define T_GCOMP timerSerial->getCaptureCompare
+#define T_SCOMP timerSerial->setCaptureCompare
+#define T_GCNT timerSerial->getCount
+#define T_SCNT timerSerial->setCount
+#define T_RFRESH(a) SET_BIT(timerSerialDEV->EGR, 1U << 0)
+#define T_SPSCALE timerSerial->setPrescaleFactor
+#define T_GPSCALE timerSerial->getPrescaleFactor
+
+#define gw(a, b, c) WRITE_REG((a)->BSRR, (1U << (b)) << (16 * !(c)))
+
+#define bw(a, b) gw(get_GPIO_Port(STM_PORT(digitalPin[((a))])), STM_PIN(digitalPin[((a))]), ((b)))
+#define tw(c) gw(txport, txbit, ((c)))
+//#define bw(a, b) digitalWrite((a),(b))
+//#define tw(c) bw(transmitPin, (c))
+#endif
+
 #define BIT_CHECK(a,b) ((a) & (1<<(b)))
 /******************************************************************************
 * Timer Definitions
@@ -96,14 +139,6 @@ License
 #define _TX_CHANNEL 3
 #define _RX_CHANNEL 4
 
-//#define TX_TIMER_CHANNEL  TIMER_CH3
-//#define TX_TIMER_MASK     TIMER_DIER_CC3IE_BIT
-//#define TX_TIMER_PENDING  TIMER_SR_CC3IF_BIT
-//#define TX_CCR            CCR3
-//#define RX_TIMER_CHANNEL  TIMER_CH4
-//#define RX_TIMER_MASK     TIMER_DIER_CC4IE_BIT
-//#define RX_TIMER_PENDING  TIMER_SR_CC4IF_BIT
-//#define RX_CCR            CCR4
 
 /******************************************************************************
 * ISR Related to Statics
@@ -118,25 +153,106 @@ SoftSerial *
 SoftSerial *
   SoftSerial::interruptObject4;
 
+voidFuncPtr
+  SoftSerial::handleRXEdgeInterruptP[4] = {
+  handleRXEdgeInterrupt1, handleRXEdgeInterrupt2, handleRXEdgeInterrupt3,
+  handleRXEdgeInterrupt4
+};
 
-voidFuncPtr SoftSerial::handleRXEdgeInterruptP[4] =
-{
-handleRXEdgeInterrupt1, handleRXEdgeInterrupt2, handleRXEdgeInterrupt3,
-    handleRXEdgeInterrupt4};
+htFuncPtr
+  SoftSerial::handleRXBitInterruptP[4] = {
+  handleRXBitInterrupt1, handleRXBitInterrupt2, handleRXBitInterrupt3,
+  handleRXBitInterrupt4
+};
 
-voidFuncPtr SoftSerial::handleRXBitInterruptP[4] =
-{
-handleRXBitInterrupt1, handleRXBitInterrupt2, handleRXBitInterrupt3,
-    handleRXBitInterrupt4};
+htFuncPtr
+  SoftSerial::handleTXBitInterruptP[4] = {
+  handleTXBitInterrupt1, handleTXBitInterrupt2, handleTXBitInterrupt3,
+  handleTXBitInterrupt4
+};
 
-voidFuncPtr SoftSerial::handleTXBitInterruptP[4] =
+#ifdef BHAL
+#define TIMER_CH1 1		//TIM_CHANNEL_1
+#define TIMER_CH2 2		//TIM_CHANNEL_2
+#define TIMER_CH3 3		//TIM_CHANNEL_3
+#define TIMER_CH4 4		//TIM_CHANNEL_4
+
+#define TIMER_DIER_CC1IE_BIT TIM_DIER_CC1IE
+#define TIMER_DIER_CC2IE_BIT TIM_DIER_CC2IE
+#define TIMER_DIER_CC3IE_BIT TIM_DIER_CC3IE
+#define TIMER_DIER_CC4IE_BIT TIM_DIER_CC4IE
+
+#define TIMER_SR_CC1IF_BIT TIM_SR_CC1IF
+#define TIMER_SR_CC2IF_BIT TIM_SR_CC2IF
+#define TIMER_SR_CC3IF_BIT TIM_SR_CC3IF
+#define TIMER_SR_CC4IF_BIT TIM_SR_CC4IF
+#endif
+
+void
+SoftSerial::print_counters (HardwareSerial * S)
 {
-handleTXBitInterrupt1, handleTXBitInterrupt2, handleTXBitInterrupt3,
-    handleTXBitInterrupt4};
+  S->println ("[" + String (millis ()) + "] rxbit=" + String (rxbitc) +
+	      ", rxedge=" + String (rxedgec) + ", txbit=" + String (txbitc));
+  uint16_t count = T_GCNT ();
+  S->println ("CNT: " + String (count) + ", RX ch." +
+	      String (RX_TIMER_CHANNEL) + ". TX ch." +
+	      String (TX_TIMER_CHANNEL));
+}
 
 inline __always_inline void
 SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
 {
+  rxbitc = rxedgec = txbitc = 0;	// reset counters
+#ifdef BHAL
+  switch (rxtxTimer)
+    {
+    case 1:
+    default:
+      timerSerialDEV = TIM1;
+      break;
+#ifdef TIM2
+    case 2:
+      timerSerialDEV = TIM2;
+      break;
+#endif
+#ifdef TIM3
+    case 3:
+      timerSerialDEV = TIM3;
+      break;
+#endif
+#ifdef TIM4
+    case 4:
+      timerSerialDEV = TIM4;
+      break;
+#endif
+/*#ifdef TIM5
+	case 5:
+	    timerSerialDEV = TIM5;
+	    break;
+#endif
+#ifdef TIM6
+	case 6:
+	    timerSerialDEV = TIM6;
+	    break;
+#endif
+#ifdef TIM7
+	case 7:
+	    timerSerialDEV = TIM7;
+	    break;
+#endif
+#ifdef TIM8
+	case 8:
+	    timerSerialDEV = TIM8;
+	    break;
+#endif
+#ifdef TIM9
+	case 9:
+	    timerSerialDEV = TIM9;
+	    break;
+#endif*/
+    }
+  timerSerial = new HardwareTimer (timerSerialDEV);
+#endif
   _rx_channel = RX_CHANNEL;
   _tx_channel = TX_CHANNEL;
   if (_rx_channel == _tx_channel)
@@ -201,7 +317,12 @@ SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
 inline void
 SoftSerial::noTXInterrupts ()
 {
+  //dbg("noTXint");
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK) = 0;
+#else
+  CLEAR_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+#endif
 }
 
 
@@ -210,7 +331,12 @@ SoftSerial::noTXInterrupts ()
 inline void
 SoftSerial::txInterrupts ()
 {
+  //dbg("TXint");
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK) = 1;
+#else
+  SET_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+#endif
 }
 
 
@@ -218,12 +344,27 @@ SoftSerial::txInterrupts ()
 inline uint16_t
 SoftSerial::isTXInterruptEnabled ()
 {
-  return (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
+#ifdef BMAP
+  uint16_t val =
+    (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
+#else
+  uint16_t val = READ_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+#endif
+  //dbg("isTXen " + String(val));
+  return (val);
 }
 
-uint16_t SoftSerial::isTXInt ()
+uint16_t
+SoftSerial::isTXInt ()
 {
-  return (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
+#ifdef BMAP
+  uint16_t val =
+    (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
+#else
+  uint16_t val = READ_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+#endif
+  //dbg("isTXint " + String(val));
+  return (val);
 }
 
 // Clear pending interrupt and enable receive interrupt
@@ -231,8 +372,14 @@ uint16_t SoftSerial::isTXInt ()
 inline void
 SoftSerial::txInterruptsClr ()
 {
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->SR, TX_TIMER_PENDING) = 0;	// Clear int pending
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK) = 1;
+#else
+  CLEAR_BIT (timerSerialDEV->SR, TX_TIMER_PENDING);
+  SET_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+#endif
+  //dbg("txIntClr");
 }
 
 
@@ -240,7 +387,13 @@ SoftSerial::txInterruptsClr ()
 inline void
 SoftSerial::noRXStartInterrupts ()
 {
+#ifdef BMAP
   bb_peri_set_bit (&EXTI_BASE->FTSR, gpioBit, 0);
+#else
+  CLEAR_BIT (EXTI->FTSR, gpioBit);
+#endif
+  //dbg("noRXstart");
+
 }
 
 
@@ -249,7 +402,12 @@ SoftSerial::noRXStartInterrupts ()
 inline void
 SoftSerial::rxStartInterrupts ()
 {
+#ifdef BMAP
   bb_peri_set_bit (&EXTI_BASE->FTSR, gpioBit, 1);
+#else
+  SET_BIT (EXTI->FTSR, gpioBit);
+#endif
+  //dbg("rxStartInt");
 }
 
 
@@ -257,7 +415,12 @@ SoftSerial::rxStartInterrupts ()
 inline void
 SoftSerial::noRXInterrupts ()
 {
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, RX_TIMER_MASK) = 0;
+#else
+  CLEAR_BIT (timerSerialDEV->DIER, RX_TIMER_MASK);
+#endif
+  //dbg("noRXInt");
 }
 
 
@@ -266,7 +429,12 @@ SoftSerial::noRXInterrupts ()
 inline void
 SoftSerial::rxInterrupts ()
 {
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, RX_TIMER_MASK) = 1;
+#else
+  SET_BIT (timerSerialDEV->DIER, RX_TIMER_MASK);
+#endif
+  //dbg("rxInt");
 }
 
 
@@ -275,11 +443,32 @@ SoftSerial::rxInterrupts ()
 inline void
 SoftSerial::rxInterruptsClr ()
 {
+#ifdef BMAP
   *bb_perip (&(timerSerialDEV->regs).gen->SR, RX_TIMER_PENDING) = 0;	// Clear int pending
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, RX_TIMER_MASK) = 1;
+#else
+  CLEAR_BIT (timerSerialDEV->SR, RX_TIMER_PENDING);
+  SET_BIT (timerSerialDEV->DIER, RX_TIMER_MASK);
+#endif
+  //dbg("rxIntClr");
 
 }
 
+#ifdef BHAL
+static uint8_t
+get_pin_id (uint16_t pin)
+{
+  uint8_t id = 0;
+
+  while (pin != 0x0001)
+    {
+      pin = pin >> 1;
+      id++;
+    }
+
+  return id;
+}
+#endif
 
 /******************************************************************************
 * Specialized functions to set interrupt priorities and assign object ointers
@@ -289,7 +478,28 @@ SoftSerial::rxInterruptsClr ()
 void
 setEXTIntPriority (uint8_t pin, uint8_t priority)
 {
-
+#ifdef BHAL
+  static const IRQn_Type irqnb[16] = {
+    EXTI0_IRQn,			//GPIO_PIN_0
+    EXTI1_IRQn,			//GPIO_PIN_1
+    EXTI2_IRQn,			//GPIO_PIN_2
+    EXTI3_IRQn,			//GPIO_PIN_3
+    EXTI4_IRQn,			//GPIO_PIN_4
+    EXTI9_5_IRQn,		//GPIO_PIN_5
+    EXTI9_5_IRQn,		//GPIO_PIN_6
+    EXTI9_5_IRQn,		//GPIO_PIN_7
+    EXTI9_5_IRQn,		//GPIO_PIN_8
+    EXTI9_5_IRQn,		//GPIO_PIN_9
+    EXTI15_10_IRQn,		//GPIO_PIN_10
+    EXTI15_10_IRQn,		//GPIO_PIN_11
+    EXTI15_10_IRQn,		//GPIO_PIN_12
+    EXTI15_10_IRQn,		//GPIO_PIN_13
+    EXTI15_10_IRQn,		//GPIO_PIN_14
+    EXTI15_10_IRQn,		//GPIO_PIN_15
+  };
+  HAL_NVIC_SetPriorityGrouping (NVIC_PRIORITYGROUP_4);
+  HAL_NVIC_SetPriority (irqnb[get_pin_id (pin)], priority, 0U);
+#else
   switch ((exti_num) (PIN_MAP[pin].gpio_bit))
     {
     case EXTI0:
@@ -323,7 +533,7 @@ setEXTIntPriority (uint8_t pin, uint8_t priority)
       nvic_irq_set_priority (NVIC_EXTI_15_10, priority);
       break;
     }
-
+#endif
 }
 
 
@@ -331,9 +541,12 @@ setEXTIntPriority (uint8_t pin, uint8_t priority)
 void
 setTimerIntPriority (uint8_t timerNumber, uint8_t priority)
 {
-
+#ifdef BHAL
+  HAL_NVIC_SetPriorityGrouping (NVIC_PRIORITYGROUP_4);
+#endif
   switch (timerNumber)
     {
+#ifdef BMAP
     case 1:
       nvic_irq_set_priority (NVIC_TIMER1_UP, priority);
       nvic_irq_set_priority (NVIC_TIMER1_CC, priority);
@@ -347,10 +560,23 @@ setTimerIntPriority (uint8_t timerNumber, uint8_t priority)
     case 4:
       nvic_irq_set_priority (NVIC_TIMER4, priority);
       break;
+#else
+    case 1:
+      HAL_NVIC_SetPriority (getTimerUpIrq (TIM1), priority, 0U);
+      HAL_NVIC_SetPriority (getTimerCCIrq (TIM1), priority, 0U);
+      break;
+    case 2:
+      HAL_NVIC_SetPriority (getTimerUpIrq (TIM2), priority, 0U);
+      break;
+    case 3:
+      HAL_NVIC_SetPriority (getTimerUpIrq (TIM3), priority, 0U);
+      break;
+    case 4:
+      HAL_NVIC_SetPriority (getTimerUpIrq (TIM4), priority, 0U);
+      break;
+#endif
     }
-
 }
-
 
 // Set the correct interruptObject for this instance
 void
@@ -381,18 +607,29 @@ SoftSerial::setInterruptObject (uint8_t timerNumber)
 // Constructor
 SoftSerial::SoftSerial (int receivePinT = 15, int transmitPinT = 16, uint8_t rxtxTimerT = 1, uint8_t tx_channel = _TX_CHANNEL, uint8_t rx_channel = _RX_CHANNEL):
 receivePin (receivePinT),
-transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
+transmitPin (transmitPinT),
+#ifdef BMAP
+  timerSerial (rxtxTimerT),
+#endif
+  rxtxTimer (rxtxTimerT)
 {
   init_timer_values (tx_channel, rx_channel);
 
+#ifdef BMAP
   // Assign pointer to the hardware registers
   timerSerialDEV = timerSerial.c_dev ();
-
+#endif
 
   // Translate transmit pin number to external interrupt number
+#ifdef BMAP
   txport = PIN_MAP[transmitPin].gpio_device;
   txbit = PIN_MAP[transmitPin].gpio_bit;
   gpioBit = (exti_num) (txbit);
+#else
+  txport = get_GPIO_Port (STM_PORT (digitalPin[transmitPin]));
+  txbit = STM_PIN (digitalPin[transmitPin]);
+  gpioBit = /*STM_PIN(digitalPin[receivePin]); 1UL << */ txbit;
+#endif
 
   // Setup ISR pointer for this instance and timer (one timer per instance)
   // This is a workaround for c++
@@ -402,24 +639,35 @@ transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
 
 SoftSerial::SoftSerial (int receivePinT = 15, int transmitPinT = 16, uint8_t rxtxTimerT = 1):
 receivePin (receivePinT),
-transmitPin (transmitPinT), timerSerial (rxtxTimerT), rxtxTimer (rxtxTimerT)
+transmitPin (transmitPinT),
+#ifdef BMAP
+  timerSerial (rxtxTimerT),
+#endif
+  rxtxTimer (rxtxTimerT)
 {
   init_timer_values (_TX_CHANNEL, _RX_CHANNEL);
 
+#ifdef BMAP
   // Assign pointer to the hardware registers
   timerSerialDEV = timerSerial.c_dev ();
-
+#endif
 
   // Translate transmit pin number to external interrupt number
+#ifdef BMAP
   txport = PIN_MAP[transmitPin].gpio_device;
   txbit = PIN_MAP[transmitPin].gpio_bit;
   gpioBit = (exti_num) (txbit);
-
+#else
+  txport = get_GPIO_Port (STM_PORT (digitalPin[transmitPin]));
+  txbit = STM_PIN (digitalPin[transmitPin]);
+  gpioBit = /*STM_PIN(digitalPin[receivePin]); 1UL << */ txbit;
+#endif
   // Setup ISR pointer for this instance and timer (one timer per instance)
   // This is a workaround for c++
   setInterruptObject (rxtxTimer);
 
 }
+
 
 // Destructor
 SoftSerial::~SoftSerial ()
@@ -434,6 +682,7 @@ SoftSerial::~SoftSerial ()
 void
 SoftSerial::txNextBit (void)
 {
+  txbitc++;
   // State 0 through 7 - receive bits
   if (txBitCount <= 7)
     {
@@ -442,9 +691,8 @@ SoftSerial::txNextBit (void)
       else
 	tw (LOW);
 
-      timerSerial.setCompare (TX_TIMER_CHANNEL,
-			      timer_get_compare (timerSerialDEV,
-						 _tx_channel) + bitPeriod);
+      T_SCOMP (TX_TIMER_CHANNEL,
+	       ((uint16_t) T_GCOMP (TX_TIMER_CHANNEL)) + bitPeriod);
 
       interrupts ();
       // Bump the bit/state counter to state 8
@@ -471,9 +719,8 @@ SoftSerial::txNextBit (void)
       if ((transmitBufferRead != transmitBufferWrite) && activeTX)
 	{
 
-	  timerSerial.setCompare (TX_TIMER_CHANNEL,
-				  timer_get_compare
-				  (timerSerialDEV, _tx_channel) + bitPeriod);
+	  T_SCOMP (TX_TIMER_CHANNEL,
+		   ((uint16_t) T_GCOMP (TX_TIMER_CHANNEL)) + bitPeriod);
 	  txBitCount = 10;
 
 	}
@@ -492,9 +739,8 @@ SoftSerial::txNextBit (void)
       tw (LOW);
       interrupts ();
 
-      timerSerial.setCompare (TX_TIMER_CHANNEL,
-			      timer_get_compare
-			      (timerSerialDEV, _tx_channel) + bitPeriod);
+      T_SCOMP (TX_TIMER_CHANNEL,
+	       ((uint16_t) T_GCOMP (TX_TIMER_CHANNEL)) + bitPeriod);
 
       txBitCount = 0;
     }
@@ -506,15 +752,13 @@ SoftSerial::txNextBit (void)
 inline void
 SoftSerial::onRXPinChange (void)
 {
-
+  rxedgec++;			//return;
   // Test if this is really the start bit and not a spurious edge
   if ((rxBitCount == 9) && activeRX)
     {
 
       // Receive Timer/delay interrupt should be off now - unmask it and center the sampling time
-      timerSerial.setCompare (RX_TIMER_CHANNEL,
-			      ((uint16_t) (timerSerialDEV->regs.gen->CNT) +
-			       startBitPeriod));
+      T_SCOMP (RX_TIMER_CHANNEL, (uint16_t) T_GCNT () + startBitPeriod);
       rxInterruptsClr ();
 
       // Mask pinchange interrupt to reduce needless interrupt
@@ -535,13 +779,12 @@ SoftSerial::onRXPinChange (void)
 inline void
 SoftSerial::rxNextBit (void)
 {
-
+  rxbitc++;
   if (rxBitCount < 8)
     {
 
-      timerSerial.setCompare (RX_TIMER_CHANNEL,
-			      timer_get_compare
-			      (timerSerialDEV, _rx_channel) + bitPeriod);
+      T_SCOMP (RX_TIMER_CHANNEL,
+	       ((uint16_t) T_GCOMP (RX_TIMER_CHANNEL)) + bitPeriod);
 
       receiveBuffer[receiveBufferWrite] >>= 1;
       if (digitalRead (receivePin))
@@ -625,63 +868,61 @@ SoftSerial::begin (uint32_t tBaud)
 
   // Initialize the timer
   noInterrupts ();
-  timerSerial.pause ();
+  T_PAUSE ();
 
-  if (tBaud > 2400)
+  if (tBaud > 38400)
     {
-      bitPeriod =
-	(uint16_t) ((uint32_t) (CYCLES_PER_MICROSECOND * 1000000) / tBaud);
+      bitPeriod = (uint16_t) ((uint32_t) (F_CPU) / tBaud);
+      startBitPeriod = bitPeriod + (bitPeriod / 2) - 150;
+      T_SPSCALE (1);
+    }
+  else if (tBaud > 2400)
+    {
+      bitPeriod = (uint16_t) ((uint32_t) (F_CPU) / tBaud);
       startBitPeriod = bitPeriod + (bitPeriod / 2) - 300;
-      timerSerial.setPrescaleFactor (1);
+      T_SPSCALE (1);
     }
   else if (tBaud > 300)
     {
-      bitPeriod =
-	(uint16_t) (((uint32_t) (CYCLES_PER_MICROSECOND * 1000000) / 16) /
-		    tBaud);
+      bitPeriod = (uint16_t) (((uint32_t) (F_CPU) / 16) / tBaud);
       startBitPeriod = bitPeriod + (bitPeriod / 2);
-      timerSerial.setPrescaleFactor (16);
+      T_SPSCALE (16);
     }
   else
     {
-      bitPeriod =
-	(uint16_t) (((uint32_t) (CYCLES_PER_MICROSECOND * 1000000) / 16) /
-		    tBaud) / 2;
-      bitPeriod -= 600;
-      startBitPeriod = bitPeriod + (bitPeriod / 2);
-      timerSerial.setPrescaleFactor (16);
+      bitPeriod = (uint16_t) (((uint32_t) (F_CPU) / 16) / tBaud) / 2;
+      startBitPeriod = bitPeriod + (bitPeriod / 2) - 600;
+      T_SPSCALE (16);
     }
 
-  timerSerial.setOverflow (TIMER_MAX_COUNT);
+  T_SETOF (TIMER_MAX_COUNT);
 
   // Set transmit bit timer  
   // Compare value set later
-  timerSerial.setMode (TX_TIMER_CHANNEL, TIMER_OUTPUT_COMPARE);
+  T_SMODE (TX_TIMER_CHANNEL, TIMER_OUTPUT_COMPARE);
 
   // State tx machine start state, attach bit interrupt, and mask it until a byte is sent
   transmitBufferRead = transmitBufferWrite = 0;
   txBitCount = 9;
-  timerSerial.attachInterrupt (TX_TIMER_CHANNEL,
-			       handleTXBitInterruptP[rxtxTimer - 1]);
+  T_AINT (TX_TIMER_CHANNEL, handleTXBitInterruptP[rxtxTimer - 1]);
   noTXInterrupts ();
 
   // Set receive bit timer  
   // Compare value set later
-  timerSerial.setMode (RX_TIMER_CHANNEL, TIMER_OUTPUT_COMPARE);
+  T_SMODE (RX_TIMER_CHANNEL, TIMER_OUTPUT_COMPARE);
 
   // Set rx State machine start state, attach the bit interrupt and mask it until start bit is received
   receiveBufferRead = receiveBufferWrite = 0;
   rxBitCount = 9;
-  timerSerial.attachInterrupt (RX_TIMER_CHANNEL,
-			       handleRXBitInterruptP[rxtxTimer - 1]);
+  T_AINT (RX_TIMER_CHANNEL, handleRXBitInterruptP[rxtxTimer - 1]);
   noRXInterrupts ();
 
   // Make the timer we are using a high priority interrupt
   setTimerIntPriority (rxtxTimer, 0);
 
   // Load the timer values and start it
-  timerSerial.refresh ();
-  timerSerial.resume ();
+  T_RFRESH ();
+  T_RESUM ();
 
   // Set start bit interrupt and priority and leave it enabled to rx first byte
   attachInterrupt (receivePin, handleRXEdgeInterruptP[rxtxTimer - 1],
@@ -706,7 +947,8 @@ SoftSerial::begin (uint32_t tBaud)
 ******************************************************************************/
 // Sets current instance listening. Transmit is always enabled
 // If his instance was already activeRX does nothing and returns false 
-bool SoftSerial::listen ()
+bool
+SoftSerial::listen ()
 {
 
   // If receive not activeRX then re-init and set activeRX
@@ -732,7 +974,8 @@ bool SoftSerial::listen ()
 // This instance will stop all RX interrupts after current in-process
 // byte is finished receiving (if any).
 // If no in-process receive byte it stops immediately
-bool SoftSerial::stopListening ()
+bool
+SoftSerial::stopListening ()
 {
 
   if (activeRX)
@@ -756,12 +999,12 @@ SoftSerial::end ()
 {
 
   stopListening ();
-  timerSerial.pause ();
+  T_PAUSE ();
   detachInterrupt (receivePin);
-  timerSerial.detachInterrupt (RX_TIMER_CHANNEL);
-  timerSerial.detachInterrupt (TX_TIMER_CHANNEL);
-  timerSerial.setMode (TX_TIMER_CHANNEL, TIMER_DISABLED);
-  timerSerial.setMode (RX_TIMER_CHANNEL, TIMER_DISABLED);
+  T_DINT (RX_TIMER_CHANNEL);
+  T_DINT (TX_TIMER_CHANNEL);
+  T_SMODE (TX_TIMER_CHANNEL, TIMER_DISABLED);
+  T_SMODE (RX_TIMER_CHANNEL, TIMER_DISABLED);
   tw (HIGH);
 }
 
@@ -864,7 +1107,8 @@ SoftSerial::peek ()
 ******************************************************************************/
 // Sets current instance enabled for sending
 // If his instance was already activeRX does nothing and returns false 
-bool SoftSerial::talk ()
+bool
+SoftSerial::talk ()
 {
 
   // If transmit not active then re-init and set activeTX
@@ -888,7 +1132,8 @@ bool SoftSerial::talk ()
 // or "stopListening" for rx
 // Returns true if sending already enabled when called
 // This instance will stop sending at end of current byte immediately 
-bool SoftSerial::stopTalking ()
+bool
+SoftSerial::stopTalking ()
 {
 
   if (activeTX)
@@ -908,7 +1153,8 @@ bool SoftSerial::stopTalking ()
 // Virtual write
 // Saves tx byte in buffer and restarts transmit delay timer
 // 1 bit time latency prior to transmit start if buffer was empty
-size_t SoftSerial::write (uint8_t b)
+size_t
+SoftSerial::write (uint8_t b)
 {
   if (txBitCount == 9)
     {
@@ -927,9 +1173,8 @@ size_t SoftSerial::write (uint8_t b)
 
       // Set state to 10 (send start bit) and re-enable transmit interrupt
       txBitCount = 10;
-      timerSerial.setCompare (TX_TIMER_CHANNEL,
-			      (int16_t) ((timerSerialDEV->regs).bas->CNT) +
-			      1);
+
+      T_SCOMP (TX_TIMER_CHANNEL, (int16_t) T_GCNT () + 1);
       txInterruptsClr ();
 
     }
@@ -937,8 +1182,7 @@ size_t SoftSerial::write (uint8_t b)
     {
 
       // Blocks if buffer full
-      bool
-	i;
+      bool i;
       do
 	{
 	  i =
@@ -971,11 +1215,15 @@ size_t SoftSerial::write (uint8_t b)
 * 
 * These are at the bottom of the file just to get them out of the way.
 ******************************************************************************/
+#ifdef BHAL
+#define HTIM HardwareTimer * ht
+#else
+#define HTIM void
+#endif
 
 inline void
-SoftSerial::handleRXBitInterrupt1 ()
+SoftSerial::handleRXBitInterrupt1 (HTIM)
 {
-
   noInterrupts ();
   interruptObject1->rxNextBit ();
   interrupts ();
@@ -993,7 +1241,7 @@ SoftSerial::handleRXEdgeInterrupt1 ()
 
 
 inline void
-SoftSerial::handleTXBitInterrupt1 ()
+SoftSerial::handleTXBitInterrupt1 (HTIM)
 {
   noInterrupts ();
   interruptObject1->txNextBit ();
@@ -1001,7 +1249,7 @@ SoftSerial::handleTXBitInterrupt1 ()
 }
 
 inline void
-SoftSerial::handleRXBitInterrupt2 ()
+SoftSerial::handleRXBitInterrupt2 (HTIM)
 {
   noInterrupts ();
   interruptObject2->rxNextBit ();
@@ -1019,7 +1267,7 @@ SoftSerial::handleRXEdgeInterrupt2 ()
 
 
 inline void
-SoftSerial::handleTXBitInterrupt2 ()
+SoftSerial::handleTXBitInterrupt2 (HTIM)
 {
   noInterrupts ();
   interruptObject2->txNextBit ();
@@ -1027,7 +1275,7 @@ SoftSerial::handleTXBitInterrupt2 ()
 }
 
 inline void
-SoftSerial::handleRXBitInterrupt3 ()
+SoftSerial::handleRXBitInterrupt3 (HTIM)
 {
   noInterrupts ();
   interruptObject3->rxNextBit ();
@@ -1045,7 +1293,7 @@ SoftSerial::handleRXEdgeInterrupt3 ()
 
 
 inline void
-SoftSerial::handleTXBitInterrupt3 ()
+SoftSerial::handleTXBitInterrupt3 (HTIM)
 {
   noInterrupts ();
   interruptObject3->txNextBit ();
@@ -1053,7 +1301,7 @@ SoftSerial::handleTXBitInterrupt3 ()
 }
 
 inline void
-SoftSerial::handleRXBitInterrupt4 ()
+SoftSerial::handleRXBitInterrupt4 (HTIM)
 {
   noInterrupts ();
   interruptObject4->rxNextBit ();
@@ -1071,7 +1319,7 @@ SoftSerial::handleRXEdgeInterrupt4 ()
 
 
 inline void
-SoftSerial::handleTXBitInterrupt4 ()
+SoftSerial::handleTXBitInterrupt4 (HTIM)
 {
   noInterrupts ();
   interruptObject4->txNextBit ();
