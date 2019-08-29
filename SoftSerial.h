@@ -145,7 +145,9 @@ private:
   uint8_t _rx_channel, _tx_channel;
   uint8_t TX_TIMER_CHANNEL, TX_TIMER_MASK, TX_TIMER_PENDING;
   uint8_t RX_TIMER_CHANNEL, RX_TIMER_MASK, RX_TIMER_PENDING;
-// debug counters
+#ifdef BHAL
+  const uint16_t CHAN[4] = {TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4};
+#endif
 
 #if DEBUG_DELAY
   volatile uint8_t overFlowTail;
@@ -293,7 +295,6 @@ public:
   virtual int read ();
   virtual int available ();
   virtual void flush ();
-  uint16_t isTXInt ();
   operator   bool ()
   {
     return true;

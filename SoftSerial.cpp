@@ -86,6 +86,9 @@ License
 #endif
 #include "SoftSerial.h"
 
+#define MIN(a, b)  (((a) < (b)) ? (a) : (b))
+#define MAX(a, b)  (((a) > (b)) ? (a) : (b))
+
 #ifdef BMAP
 #define T_PAUSE timerSerial.pause
 #define T_DINT timerSerial.detachInterrupt
@@ -97,9 +100,10 @@ License
 #define T_SCOMP timerSerial.setCompare
 #define T_GCNT timerSerial.getCount
 #define T_SCNT timerSerial.setCount
-#define T_RFRESH timerSerial.refresh
+#define T_RFR timerSerial.refresh
 #define T_SPSCALE timerSerial.setPrescaleFactor
 #define T_GPSCALE timerSerial.getPrescaleFactor
+#define T_TIMFREQ(a) F_CPU
 
 #define gw(a, b, c) WRITE_REG((a)->BSRR, (1U << (b)) << (16 * !(c)))
 
@@ -107,22 +111,35 @@ License
 #define tw(c) txport->regs->BSRR = (1U << txbit) << (16 * !(c))
 
 #else
+#define T_RFR(a) timerSerial->refresh()
 #define T_PAUSE timerSerial->pause
 #define T_DINT timerSerial->detachInterrupt
 #define T_AINT timerSerial->attachInterrupt
 #define T_SMODE timerSerial->setMode
 #define T_SETOF timerSerial->setOverflow
 #define T_RESUM timerSerial->resume
-#define T_GCOMP timerSerial->getCaptureCompare
-#define T_SCOMP timerSerial->setCaptureCompare
-#define T_GCNT timerSerial->getCount
-#define T_SCNT timerSerial->setCount
-#define T_RFRESH(a) SET_BIT(timerSerialDEV->EGR, 1U << 0)
+
+#define TIM_GET_COMPARE(__HANDLE__, __CHANNEL__) \
+  (*(__IO uint32_t *)(&((__HANDLE__)->CCR1) + ((__CHANNEL__) >> 2U)))
+#define TIM_SET_COMPARE(__HANDLE__, __CHANNEL__, __COMPARE__) \
+(*(__IO uint32_t *)(&((__HANDLE__)->CCR1) + ((__CHANNEL__) >> 2U)) = (__COMPARE__))
+//#define T_GCOMP timerSerial->getCaptureCompare
+#define T_GCOMP(a) TIM_GET_COMPARE(timerSerialDEV, CHAN[(a)-1])
+//#define T_SCOMP timerSerial->setCaptureCompare
+#define T_SCOMP(a,b) TIM_SET_COMPARE(timerSerialDEV, CHAN[(a)-1], (b))
+//#define T_GCNT timerSerial->getCount
+#define T_GCNT(a) ((int16_t) timerSerialDEV->CNT)
+//#define T_SCNT timerSerial->setCount
+#define T_SCNT(a) timerSerialDEV->CNT = (a)
+
+//#define T_RFRESH(a) SET_BIT(timerSerialDEV->EGR, 1U << 0)
+#define T_RFRESH(a) timerSerialDEV->EGR = 1
 #define T_SPSCALE timerSerial->setPrescaleFactor
 #define T_GPSCALE timerSerial->getPrescaleFactor
+#define T_TIMFREQ(a) F_CPU //(timerSerial->getTimerClkFreq())
 
-#define gw(a, b, c) WRITE_REG((a)->BSRR, (1U << (b)) << (16 * !(c)))
-
+//#define gw(a, b, c) WRITE_REG((a)->BSRR, (1U << (b)) << (16 * !(c)))
+#define gw(a, b, c) (a)->BSRR = (1U << (b)) << (16 * !(c))
 #define bw(a, b) gw(get_GPIO_Port(STM_PORT(digitalPin[((a))])), STM_PIN(digitalPin[((a))]), ((b)))
 #define tw(c) gw(txport, txbit, ((c)))
 //#define bw(a, b) digitalWrite((a),(b))
@@ -188,15 +205,42 @@ htFuncPtr
 #define TIMER_SR_CC4IF_BIT TIM_SR_CC4IF
 #endif
 
+#ifdef BMAP
+static inline  __always_inline uint32_t __RBIT(uint32_t value)
+{
+  uint32_t result;
+   asm volatile ("rbit %0, %1" : "=r" (result) : "r" (value) );
+  return result;
+}
+
+#define POSITION_VAL(a) __builtin_clz(__RBIT((a)))
+#endif
+
+#if 0
+static inline __always_inline uint8_t
+get_pin_id (uint16_t pin)
+{
+  uint8_t id = 0;
+
+  while (pin != 0x0001)
+    {
+      pin = pin >> 1;
+      id++;
+    }
+
+  return id;
+}
+#else
+#define get_pin_id POSITION_VAL
+#endif
+
 void
 SoftSerial::print_counters (HardwareSerial * S)
 {
   S->println ("[" + String (millis ()) + "] rxbit=" + String (rxbitc) +
 	      ", rxedge=" + String (rxedgec) + ", txbit=" + String (txbitc));
   uint16_t count = T_GCNT ();
-  S->println ("CNT: " + String (count) + ", RX ch." +
-	      String (RX_TIMER_CHANNEL) + ". TX ch." +
-	      String (TX_TIMER_CHANNEL));
+  S->println ("gpiobit=" + String(gpioBit) + ", txbit=" + String(txbit));
 }
 
 inline __always_inline void
@@ -225,31 +269,6 @@ SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
       timerSerialDEV = TIM4;
       break;
 #endif
-/*#ifdef TIM5
-	case 5:
-	    timerSerialDEV = TIM5;
-	    break;
-#endif
-#ifdef TIM6
-	case 6:
-	    timerSerialDEV = TIM6;
-	    break;
-#endif
-#ifdef TIM7
-	case 7:
-	    timerSerialDEV = TIM7;
-	    break;
-#endif
-#ifdef TIM8
-	case 8:
-	    timerSerialDEV = TIM8;
-	    break;
-#endif
-#ifdef TIM9
-	case 9:
-	    timerSerialDEV = TIM9;
-	    break;
-#endif*/
     }
   timerSerial = new HardwareTimer (timerSerialDEV);
 #endif
@@ -348,22 +367,9 @@ SoftSerial::isTXInterruptEnabled ()
   uint16_t val =
     (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
 #else
-  uint16_t val = READ_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
+  uint16_t val = (READ_BIT (timerSerialDEV->DIER, TX_TIMER_MASK) == TX_TIMER_MASK);
 #endif
   //dbg("isTXen " + String(val));
-  return (val);
-}
-
-uint16_t
-SoftSerial::isTXInt ()
-{
-#ifdef BMAP
-  uint16_t val =
-    (*bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK));
-#else
-  uint16_t val = READ_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
-#endif
-  //dbg("isTXint " + String(val));
   return (val);
 }
 
@@ -376,7 +382,7 @@ SoftSerial::txInterruptsClr ()
   *bb_perip (&(timerSerialDEV->regs).gen->SR, TX_TIMER_PENDING) = 0;	// Clear int pending
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, TX_TIMER_MASK) = 1;
 #else
-  CLEAR_BIT (timerSerialDEV->SR, TX_TIMER_PENDING);
+  timerSerialDEV->SR = ~(TX_TIMER_PENDING);
   SET_BIT (timerSerialDEV->DIER, TX_TIMER_MASK);
 #endif
   //dbg("txIntClr");
@@ -390,7 +396,7 @@ SoftSerial::noRXStartInterrupts ()
 #ifdef BMAP
   bb_peri_set_bit (&EXTI_BASE->FTSR, gpioBit, 0);
 #else
-  CLEAR_BIT (EXTI->FTSR, gpioBit);
+  CLEAR_BIT (EXTI->FTSR, 1U << gpioBit);
 #endif
   //dbg("noRXstart");
 
@@ -405,7 +411,7 @@ SoftSerial::rxStartInterrupts ()
 #ifdef BMAP
   bb_peri_set_bit (&EXTI_BASE->FTSR, gpioBit, 1);
 #else
-  SET_BIT (EXTI->FTSR, gpioBit);
+  SET_BIT (EXTI->FTSR, 1U << gpioBit);
 #endif
   //dbg("rxStartInt");
 }
@@ -447,28 +453,13 @@ SoftSerial::rxInterruptsClr ()
   *bb_perip (&(timerSerialDEV->regs).gen->SR, RX_TIMER_PENDING) = 0;	// Clear int pending
   *bb_perip (&(timerSerialDEV->regs).gen->DIER, RX_TIMER_MASK) = 1;
 #else
-  CLEAR_BIT (timerSerialDEV->SR, RX_TIMER_PENDING);
+  timerSerialDEV->SR = ~(RX_TIMER_PENDING);
   SET_BIT (timerSerialDEV->DIER, RX_TIMER_MASK);
 #endif
   //dbg("rxIntClr");
 
 }
 
-#ifdef BHAL
-static uint8_t
-get_pin_id (uint16_t pin)
-{
-  uint8_t id = 0;
-
-  while (pin != 0x0001)
-    {
-      pin = pin >> 1;
-      id++;
-    }
-
-  return id;
-}
-#endif
 
 /******************************************************************************
 * Specialized functions to set interrupt priorities and assign object ointers
@@ -498,7 +489,7 @@ setEXTIntPriority (uint8_t pin, uint8_t priority)
     EXTI15_10_IRQn,		//GPIO_PIN_15
   };
   HAL_NVIC_SetPriorityGrouping (NVIC_PRIORITYGROUP_4);
-  HAL_NVIC_SetPriority (irqnb[get_pin_id (pin)], priority, 0U);
+  HAL_NVIC_SetPriority (irqnb[get_pin_id(STM_GPIO_PIN(digitalPinToPinName(pin)))], priority, 0U);
 #else
   switch ((exti_num) (PIN_MAP[pin].gpio_bit))
     {
@@ -628,7 +619,7 @@ transmitPin (transmitPinT),
 #else
   txport = get_GPIO_Port (STM_PORT (digitalPin[transmitPin]));
   txbit = STM_PIN (digitalPin[transmitPin]);
-  gpioBit = /*STM_PIN(digitalPin[receivePin]); 1UL << */ txbit;
+  gpioBit = get_pin_id(STM_GPIO_PIN(digitalPinToPinName(transmitPin)));
 #endif
 
   // Setup ISR pointer for this instance and timer (one timer per instance)
@@ -660,7 +651,7 @@ transmitPin (transmitPinT),
 #else
   txport = get_GPIO_Port (STM_PORT (digitalPin[transmitPin]));
   txbit = STM_PIN (digitalPin[transmitPin]);
-  gpioBit = /*STM_PIN(digitalPin[receivePin]); 1UL << */ txbit;
+  gpioBit = get_pin_id(STM_GPIO_PIN(digitalPinToPinName(transmitPin)));
 #endif
   // Setup ISR pointer for this instance and timer (one timer per instance)
   // This is a workaround for c++
@@ -870,27 +861,27 @@ SoftSerial::begin (uint32_t tBaud)
   noInterrupts ();
   T_PAUSE ();
 
-  if (tBaud > 38400)
+/*  if (tBaud > 38400)
     {
-      bitPeriod = (uint16_t) ((uint32_t) (F_CPU) / tBaud);
-      startBitPeriod = bitPeriod + (bitPeriod / 2) - 150;
+      bitPeriod = (uint16_t) ((uint32_t) (T_TIMFREQ()) / tBaud);
+      startBitPeriod = bitPeriod + (bitPeriod / 2) - 200;
       T_SPSCALE (1);
     }
-  else if (tBaud > 2400)
+  else*/ if (tBaud > 2400)
     {
-      bitPeriod = (uint16_t) ((uint32_t) (F_CPU) / tBaud);
+      bitPeriod = (uint16_t) ((uint32_t) (T_TIMFREQ()) / tBaud);
       startBitPeriod = bitPeriod + (bitPeriod / 2) - 300;
       T_SPSCALE (1);
     }
   else if (tBaud > 300)
     {
-      bitPeriod = (uint16_t) (((uint32_t) (F_CPU) / 16) / tBaud);
+      bitPeriod = (uint16_t) (((uint32_t) (T_TIMFREQ()) / 16) / tBaud);
       startBitPeriod = bitPeriod + (bitPeriod / 2);
       T_SPSCALE (16);
     }
   else
     {
-      bitPeriod = (uint16_t) (((uint32_t) (F_CPU) / 16) / tBaud) / 2;
+      bitPeriod = (uint16_t) (((uint32_t) (T_TIMFREQ()) / 16) / tBaud) / 2;
       startBitPeriod = bitPeriod + (bitPeriod / 2) - 600;
       T_SPSCALE (16);
     }
@@ -921,8 +912,8 @@ SoftSerial::begin (uint32_t tBaud)
   setTimerIntPriority (rxtxTimer, 0);
 
   // Load the timer values and start it
-  T_RFRESH ();
   T_RESUM ();
+  T_RFR ();
 
   // Set start bit interrupt and priority and leave it enabled to rx first byte
   attachInterrupt (receivePin, handleRXEdgeInterruptP[rxtxTimer - 1],
