@@ -146,7 +146,9 @@ private:
   uint8_t TX_TIMER_CHANNEL, TX_TIMER_MASK, TX_TIMER_PENDING;
   uint8_t RX_TIMER_CHANNEL, RX_TIMER_MASK, RX_TIMER_PENDING;
 #ifdef BHAL
-  const uint16_t CHAN[4] = {TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4};
+  const uint16_t CHAN[4] =
+    { TIM_CHANNEL_1, TIM_CHANNEL_2, TIM_CHANNEL_3, TIM_CHANNEL_4 };
+  uint32_t exprio = ~(0UL), curprio = ~(0UL);
 #endif
 
 #if DEBUG_DELAY
@@ -170,8 +172,10 @@ private:
   volatile uint8_t transmitBuffer[SS_MAX_TX_BUFF];
 
   // Static Data
-  static SoftSerial *interruptObject1;	// This looks inefficient but it reduces
-  static SoftSerial *interruptObject2;	// interrupt latency a small amount
+  static SoftSerial *interruptObject1;	// This looks inefficient
+  // but it reduces
+  static SoftSerial *interruptObject2;	// interrupt latency a
+  // small amount
   static SoftSerial *interruptObject3;
   static SoftSerial *interruptObject4;
 
@@ -240,14 +244,17 @@ private:
 
 public:
   // Public Methods
-    SoftSerial (int receivePinT, int transmitPinT,
-		uint8_t rxtxTimerT /*, bool inverseLogic */ );
+  SoftSerial (int receivePinT, int transmitPinT, uint8_t rxtxTimerT	/* , 
+									 * bool 
+									 * inverseLogic 
+									 */ );
 
-    SoftSerial (int receivePinT, int transmitPinT,
-		uint8_t rxtxTimerT, uint8_t tx_channel,
-		uint8_t rx_channel /*, bool inverseLogic */ );
+  SoftSerial (int receivePinT, int transmitPinT, uint8_t rxtxTimerT, uint8_t tx_channel, uint8_t rx_channel	/* , 
+														 * bool 
+														 * inverseLogic 
+														 */ );
 
-   ~SoftSerial ();
+  ~SoftSerial ();
 
   uint32_t rxedgec, rxbitc, txbitc;
   uint32_t tt = millis ();
@@ -295,7 +302,7 @@ public:
   virtual int read ();
   virtual int available ();
   virtual void flush ();
-  operator   bool ()
+  operator            bool ()
   {
     return true;
   }
