@@ -844,7 +844,13 @@ SoftSerial::begin (uint32_t tBaud)
   noInterrupts ();
   T_PAUSE ();
 
-  if (tBaud > 2400)
+  if (tBaud > 36800)
+    {
+      bitPeriod = (uint16_t) ((uint32_t) (T_TIMFREQ ()) / tBaud);
+      startBitPeriod = bitPeriod + (bitPeriod / 2) - 260;
+      T_SPSCALE (1);
+    }
+  else if (tBaud > 2400)
     {
       bitPeriod = (uint16_t) ((uint32_t) (T_TIMFREQ ()) / tBaud);
       startBitPeriod = bitPeriod + (bitPeriod / 2) - 300;

@@ -5,13 +5,14 @@ Interrupt Driven Software Serial Library for STM32Duino - Use any GPIO
 * Using Timers and Interrupts enabling use of any GPIO pins for RX/TX
 * 
 * Copyright 2015 Ron Curry, InSyte Technologies
-* TX silence fix and tweaks by stas2z
+* TX silence fix, HAL based official core support and tweaks by stas2z
  
 Features:
 - Fully interrupt driven - no delay routines.
 - Any GPIO pin may be used for tx or rx (hence the AP libray name suffix)
 - Circular buffers on both send and receive.
-- Works up to 115,200 baud.
+- Works up to 115,200 baud
+    (for maple core, HAL based official core supports up to 57600 //by stas2z)
 - Member functions compatible with Hardware Serial and Arduino NewSoftSerial Libs
 - Extensions for non-blocking read and transmit control
 - Supports up to 4 ports (one timer used per port) without modification.
