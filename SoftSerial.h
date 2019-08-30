@@ -126,17 +126,17 @@ private:
   // Per object data
   uint8_t transmitPin;
 #ifdef BMAP
-  gpio_dev *txport;
+  gpio_dev *txport, *rxport;
   exti_num gpioBit;
   HardwareTimer timerSerial;
   timer_dev *timerSerialDEV;
 #else
-  GPIO_TypeDef *txport;
+  GPIO_TypeDef *txport, *rxport;
   uint8_t gpioBit;
   HardwareTimer *timerSerial;
   TIM_TypeDef *timerSerialDEV;
 #endif
-  uint8_t txbit;
+  uint8_t txbit, rxbit;
   uint8_t receivePin;
   uint8_t rxtxTimer;
   bool activeRX;
