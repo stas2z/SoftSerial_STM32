@@ -83,6 +83,8 @@ License
 #ifdef BMAP
 #include <libmaple/timer.h>
 #include <ext_interrupts.h>
+#undef __always_inline
+#define __always_inline inline __attribute__((always_inline))
 #endif
 #include "SoftSerial.h"
 
@@ -200,7 +202,8 @@ handleTXBitInterrupt1, handleTXBitInterrupt2, handleTXBitInterrupt3,
 #endif
 
 #ifdef BMAP
-static inline __always_inline
+static
+  __always_inline
   uint32_t
 __RBIT (uint32_t value)
 {
@@ -214,7 +217,7 @@ __RBIT (uint32_t value)
 #endif
 
 #if 0
-static inline
+static
   __always_inline
   uint8_t
 get_pin_id (uint16_t pin)
@@ -241,7 +244,7 @@ SoftSerial::print_counters (HardwareSerial * S)
 	      ", rxedge=" + String (rxedgec) + ", txbit=" + String (txbitc));
 }
 
-inline __always_inline void
+__always_inline void
 SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
 {
   // reset counters
@@ -353,7 +356,7 @@ SoftSerial::init_timer_values (uint8_t TX_CHANNEL, uint8_t RX_CHANNEL)
 * Convenience functions to disable/enable tx and rx interrupts
 ******************************************************************************/
 // Mask transmit interrupt
-inline void
+__always_inline void
 SoftSerial::noTXInterrupts ()
 {
   // dbg("noTXint");
@@ -367,7 +370,7 @@ SoftSerial::noTXInterrupts ()
 
 // Enable transmit interrupt
 // Note: Purposely does not clear pending interrupt
-inline void
+__always_inline void
 SoftSerial::txInterrupts ()
 {
   // dbg("TXint");
@@ -380,7 +383,7 @@ SoftSerial::txInterrupts ()
 
 
 // Test if transmit interrupt is enabled
-inline uint16_t
+__always_inline uint16_t
 SoftSerial::isTXInterruptEnabled ()
 {
 #ifdef BMAP
@@ -395,7 +398,7 @@ SoftSerial::isTXInterruptEnabled ()
 
 // Clear pending interrupt and enable receive interrupt
 // Note: Clears pending interrupt
-inline void
+__always_inline void
 SoftSerial::txInterruptsClr ()
 {
 #ifdef BMAP
@@ -411,7 +414,7 @@ SoftSerial::txInterruptsClr ()
 
 
 // Mask receive start bit interrupt
-inline void
+__always_inline void
 SoftSerial::noRXStartInterrupts ()
 {
 #ifdef BMAP
@@ -424,7 +427,7 @@ SoftSerial::noRXStartInterrupts ()
 
 // Enable receive start bit interrupt
 // Note: Purposely does not clear pending interrupt
-inline void
+__always_inline void
 SoftSerial::rxStartInterrupts ()
 {
 #ifdef BMAP
@@ -436,7 +439,7 @@ SoftSerial::rxStartInterrupts ()
 
 
 // Mask receive interrupt
-inline void
+__always_inline void
 SoftSerial::noRXInterrupts ()
 {
 #ifdef BMAP
@@ -449,7 +452,7 @@ SoftSerial::noRXInterrupts ()
 
 // Enable receive interrupt
 // Note: Purposely does not clear pending interrupt
-inline void
+__always_inline void
 SoftSerial::rxInterrupts ()
 {
 #ifdef BMAP
@@ -462,7 +465,7 @@ SoftSerial::rxInterrupts ()
 
 // Clear pending interrupt and enable receive interrupt
 // Note: Clears pending interrupt
-inline void
+__always_inline void
 SoftSerial::rxInterruptsClr ()
 {
 #ifdef BMAP
@@ -714,7 +717,7 @@ SoftSerial::txNextBit (void)
 
 
 // Start Bit Receive ISR
-inline void
+__always_inline void
 SoftSerial::onRXPinChange (void)
 {
   rxedgec++;			// return;
@@ -742,7 +745,7 @@ SoftSerial::onRXPinChange (void)
 
 
 // Receive next bit. Called by timer ch2 interrupt
-inline void
+__always_inline void
 SoftSerial::rxNextBit (void)
 {
   rxbitc++;
@@ -1201,7 +1204,7 @@ size_t SoftSerial::write (uint8_t b)
 #define HTIM void
 #endif
 
-inline void
+__always_inline void
 SoftSerial::handleRXBitInterrupt1 (HTIM)
 {
   noInterrupts ();
@@ -1210,7 +1213,7 @@ SoftSerial::handleRXBitInterrupt1 (HTIM)
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleRXEdgeInterrupt1 ()
 {
   if (interruptObject1)
@@ -1220,7 +1223,7 @@ SoftSerial::handleRXEdgeInterrupt1 ()
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleTXBitInterrupt1 (HTIM)
 {
   noInterrupts ();
@@ -1228,7 +1231,7 @@ SoftSerial::handleTXBitInterrupt1 (HTIM)
   interrupts ();
 }
 
-inline void
+__always_inline void
 SoftSerial::handleRXBitInterrupt2 (HTIM)
 {
   noInterrupts ();
@@ -1237,7 +1240,7 @@ SoftSerial::handleRXBitInterrupt2 (HTIM)
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleRXEdgeInterrupt2 ()
 {
   noInterrupts ();
@@ -1246,7 +1249,7 @@ SoftSerial::handleRXEdgeInterrupt2 ()
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleTXBitInterrupt2 (HTIM)
 {
   noInterrupts ();
@@ -1254,7 +1257,7 @@ SoftSerial::handleTXBitInterrupt2 (HTIM)
   interrupts ();
 }
 
-inline void
+__always_inline void
 SoftSerial::handleRXBitInterrupt3 (HTIM)
 {
   noInterrupts ();
@@ -1263,7 +1266,7 @@ SoftSerial::handleRXBitInterrupt3 (HTIM)
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleRXEdgeInterrupt3 ()
 {
   noInterrupts ();
@@ -1272,7 +1275,7 @@ SoftSerial::handleRXEdgeInterrupt3 ()
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleTXBitInterrupt3 (HTIM)
 {
   noInterrupts ();
@@ -1280,7 +1283,7 @@ SoftSerial::handleTXBitInterrupt3 (HTIM)
   interrupts ();
 }
 
-inline void
+__always_inline void
 SoftSerial::handleRXBitInterrupt4 (HTIM)
 {
   noInterrupts ();
@@ -1289,7 +1292,7 @@ SoftSerial::handleRXBitInterrupt4 (HTIM)
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleRXEdgeInterrupt4 ()
 {
   noInterrupts ();
@@ -1298,7 +1301,7 @@ SoftSerial::handleRXEdgeInterrupt4 ()
 }
 
 
-inline void
+__always_inline void
 SoftSerial::handleTXBitInterrupt4 (HTIM)
 {
   noInterrupts ();

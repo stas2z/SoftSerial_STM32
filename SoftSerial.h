@@ -302,7 +302,7 @@ public:
   virtual int read ();
   virtual int available ();
   virtual void flush ();
-  operator            bool ()
+  operator	bool ()
   {
     return true;
   }
