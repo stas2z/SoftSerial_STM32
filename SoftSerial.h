@@ -1,6 +1,9 @@
 #ifndef SoftSerial_h
 #define SoftSerial_h
-#if defined(__STM32F1__)
+#if defined(STM32GENERIC)
+#define BGEN
+#warning STM32GENERIC support still wip
+#elif defined(__STM32F1__)
 #define BMAP
 #elif defined(ARDUINO_ARCH_STM32)
 #define BHAL
@@ -110,6 +113,10 @@ License
 #define HTIM HardwareTimer *
 typedef void (*voidFuncPtr)(void);
 typedef void (*htFuncPtr)(HardwareTimer *);
+#elif defined(BGEN)
+#define HTIM void
+typedef void (*voidFuncPtr)(void);
+#define htFuncPtr voidFuncPtr
 #else
 #define HTIM void
 #define htFuncPtr voidFuncPtr
@@ -121,6 +128,8 @@ typedef void (*htFuncPtr)(HardwareTimer *);
 #define SS_MAX_TX_BUFF (SSI_TX_BUFF_SIZE - 1) // TX buffer size
 #define _SSI_VERSION 1.2                      // Library Version
 
+void p_dbg(Stream *S);
+
 /******************************************************************************
  * Class Definition
  ******************************************************************************/
@@ -128,7 +137,13 @@ class SoftSerial : public Stream {
 private:
   // Per object data
   uint8_t transmitPin;
+#ifndef BGEN
   HardwareTimer timerSerial;
+#else
+  HardwareTimer *timerSerialP;
+#define timerSerial (*timerSerialP)
+#endif
+
 #ifdef BMAP
   gpio_dev *txport, *rxport;
   exti_num gpioBit;
@@ -244,17 +259,9 @@ public:
 
   uint32_t rxedgec, rxbitc, txbitc;
   uint32_t tt = millis();
-  String s_dbg = "";
-  void dbg(String p) { s_dbg += "[" + String(millis()) + "] " + p + "\n"; }
-  void p_dbg(HardwareSerial *S) {
-    S->print(s_dbg);
-    s_dbg = "";
-  }
   static int library_version() { return _SSI_VERSION; }
-  void print_counters(HardwareSerial *S);
-#if defined(USBD_USE_CDC) || defined(SERIAL_USB)
-  void print_counters(USBSerial *S);
-#endif
+  void print_counters(Stream *S);
+  void dbg(const String &p);
   void begin(uint32_t tBaud);
   bool listen();
   bool isListening() { return activeRX; }
