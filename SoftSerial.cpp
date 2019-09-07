@@ -113,10 +113,21 @@ void p_dbg(Stream *S) {
 #ifdef BMAP
 #define TIMS(a) (a)
 
+#if 1
+#define TIM_GET_COMPARE(__HANDLE__, __CHANNEL__)                               \
+  (*(__IO uint32_t *)(&(((__HANDLE__)->regs).gen->CCR1) + ((__CHANNEL__))))
+#define TIM_SET_COMPARE(__HANDLE__, __CHANNEL__, __COMPARE__)                  \
+  (*(__IO uint32_t *)(&(((__HANDLE__)->regs).gen->CCR1) + ((__CHANNEL__))) = (__COMPARE__))
+#define T_GCOMP(a) TIM_GET_COMPARE(timerSerialDEV, (a)-1)
+#define T_SCOMP(a, b) TIM_SET_COMPARE(timerSerialDEV, (a)-1, (b))
+#define T_GCNT(a) ((int16_t)(timerSerialDEV->regs).gen->CNT)
+#define T_SCNT(a) (timerSerialDEV->regs).gen->CNT = (a)
+#else
 #define T_GCOMP timerSerial.getCompare
 #define T_SCOMP timerSerial.setCompare
 #define T_GCNT timerSerial.getCount
 #define T_SCNT timerSerial.setCount
+#endif
 #define T_RFR timerSerial.refresh
 
 #define _gpiowrite(a, b, c) (a)->regs->BSRR = (1U << (b)) << (16 * !(c))
@@ -692,7 +703,7 @@ SoftSerial::~SoftSerial() { end(); }
  ******************************************************************************/
 // Transmits next bit. Called by timer ch1 compare interrupt
 void SoftSerial::txNextBit(HTIM) {
-  txbitc++;
+  ++txbitc;
   // State 0 through 7 - receive bits
   if (txBitCount <= 7) {
     if (BIT_CHECK(transmitBuffer[transmitBufferRead], txBitCount) > 0)
@@ -704,7 +715,7 @@ void SoftSerial::txNextBit(HTIM) {
 
     interrupts();
     // Bump the bit/state counter to state 8
-    txBitCount++;
+    ++txBitCount;
 
 #if DEBUG_DELAY
     _writepin(DEBUG_PIN1, 1);
@@ -730,7 +741,7 @@ void SoftSerial::txNextBit(HTIM) {
 
     } else {
 
-      txBitCount++;
+      ++txBitCount;
       // Buffer empty so shutdown delay/timer until "write" puts
       // data in
       noTXInterrupts();
@@ -749,7 +760,7 @@ void SoftSerial::txNextBit(HTIM) {
 
 // Start Bit Receive ISR
 __always_inline void SoftSerial::onRXPinChange(void) {
-  rxedgec++;
+  ++rxedgec;
   // Test if this is really the start bit and not a spurious edge
   if ((rxBitCount == 9) && activeRX) {
 
@@ -773,7 +784,7 @@ __always_inline void SoftSerial::onRXPinChange(void) {
 
 // Receive next bit. Called by timer ch2 interrupt
 __always_inline void SoftSerial::rxNextBit(HTIM) {
-  rxbitc++;
+  ++rxbitc;
   //  if (!activeRX) return;
   if (rxBitCount < 8) {
 
@@ -790,7 +801,7 @@ __always_inline void SoftSerial::rxNextBit(HTIM) {
 
     interrupts();
 
-    rxBitCount++;
+    ++rxBitCount;
 
     // State 8 - Save incoming byte and update buffer
   } else if (rxBitCount == 8) {
@@ -855,7 +866,7 @@ void SoftSerial::begin(uint32_t tBaud) {
 
   T_PAUSE();
 
-#define DIV 64
+#define DIV 24
 
   bitPeriod = (uint16_t)(((uint32_t)(T_TIMFREQ()) / DIV) / tBaud);
   startBitPeriod = bitPeriod + (bitPeriod / 2) - (320 / DIV);
