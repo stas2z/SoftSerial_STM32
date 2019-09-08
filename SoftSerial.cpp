@@ -52,11 +52,12 @@ Improvements
 No doubt the code can be improved upon. If you use the code PLEASE give back by
 providing soure code for improvements or modifications you've made!
 - Specific improvements that come to mind and I'd like to explore are:
-  o Replacing the STM32/Maple timer interrupt handlers with something more
-streamlined and lower latency and overhead. o A better way to implement the high
-level C++ ISR's to reduce latency/overhead o Minor improvements that can save
-cycles in the C++ ISR's such as using bit-banding o Possibly a way to coordinate
-RX/TX to increase full-duplex capability.
+* Replacing the STM32/Maple timer interrupt handlers with something more
+streamlined and lower latency and overhead.
+* A better way to implement the high level C++ ISR's to reduce latency/overhead
+* Minor improvements that can save cycles in the C++ ISR's such as using
+bit-banding
+* Possibly a way to coordinate RX/TX to increase full-duplex capability.
 
 License
 * Permission is hereby granted, free of charge, to any person
@@ -117,7 +118,8 @@ void p_dbg(Stream *S) {
 #define TIM_GET_COMPARE(__HANDLE__, __CHANNEL__)                               \
   (*(__IO uint32_t *)(&(((__HANDLE__)->regs).gen->CCR1) + ((__CHANNEL__))))
 #define TIM_SET_COMPARE(__HANDLE__, __CHANNEL__, __COMPARE__)                  \
-  (*(__IO uint32_t *)(&(((__HANDLE__)->regs).gen->CCR1) + ((__CHANNEL__))) = (__COMPARE__))
+  (*(__IO uint32_t *)(&(((__HANDLE__)->regs).gen->CCR1) + ((__CHANNEL__))) =   \
+       (__COMPARE__))
 #define T_GCOMP(a) TIM_GET_COMPARE(timerSerialDEV, (a)-1)
 #define T_SCOMP(a, b) TIM_SET_COMPARE(timerSerialDEV, (a)-1, (b))
 #define T_GCNT(a) ((int16_t)(timerSerialDEV->regs).gen->CNT)
@@ -130,13 +132,13 @@ void p_dbg(Stream *S) {
 #endif
 #define T_RFR timerSerial.refresh
 
-#define _gpiowrite(a, b, c) (a)->regs->BSRR = (1U << (b)) << (16 * !(c))
+#define _gpiowrite(a, b, c) (a)->regs->BSRR = (1U << (b)) << (!(c) << 4)
 #define _gpioread(a, b) ((a)->regs->IDR & (1U << (b)))
 #define _readrx(a) _gpioread(rxport, rxbit)
 #define _writepin(a, b)                                                        \
   (PIN_MAP[(a)].gpio_device)->regs->BSRR = (1U << PIN_MAP[(a)].gpio_bit)       \
                                            << (16 * !(b))
-#define _writetx(c) txport->regs->BSRR = (1U << txbit) << (16 * !(c))
+#define _writetx(c) txport->regs->BSRR = (1U << txbit) << (!(c) << 4)
 
 #elif defined(BHAL)
 
@@ -182,7 +184,7 @@ TIM_TypeDef *TIMS(uint8_t num) {
 
 #define T_RFR(a) SET_BIT(timerSerialDEV->EGR, 0U)
 
-#define _gpiowrite(a, b, c) (a)->BSRR = (1U << (b)) << (16 * !(c))
+#define _gpiowrite(a, b, c) (a)->BSRR = (1U << (b)) << (!(c) << 4)
 #define _gpioread(a, b) ((a)->IDR & (1U << (b)))
 #define _readrx(a) _gpioread(rxport, rxbit)
 #define _writepin(a, b)                                                        \
@@ -246,7 +248,7 @@ TIM_TypeDef *TIMDEVS(uint8_t num) {
 #define T_SCNT timerSerial.setCount
 #define T_RFR(a)
 
-#define _gpiowrite(a, b, c) (a)->BSRR = (1U << (b)) << (16 * !(c))
+#define _gpiowrite(a, b, c) (a)->BSRR = (1U << (b)) << (!(c) << 4)
 #define _gpioread(a, b) ((a)->IDR & (1U << (b)))
 #define _readrx(a) _gpioread(rxport, rxbit)
 #define _writepin(a, b)                                                        \

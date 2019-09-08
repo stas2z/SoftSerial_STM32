@@ -65,11 +65,12 @@ Improvements
 No doubt the code can be improved upon. If you use the code PLEASE give back by
 providing soure code for improvements or modifications you've made!
 - Specific improvements that come to mind and I'd like to explore are:
-  o Replacing the STM32/Maple timer interrupt handlers with something more
-streamlined and lower latency and overhead. o A better way to implement the high
-level C++ ISR's to reduce latency/overhead o Minor improvements that can save
-cycles in the C++ ISR's such as using bit-banding o Possibly a way to coordinate
-RX/TX to increase full-duplex capability.
+* Replacing the STM32/Maple timer interrupt handlers with something more
+streamlined and lower latency and overhead.
+* A better way to implement the high level C++ ISR's to reduce latency/overhead
+* Minor improvements that can save cycles in the C++ ISR's such as using
+bit-banding
+* Possibly a way to coordinate RX/TX to increase full-duplex capability.
 
 License
 * Permission is hereby granted, free of charge, to any person
@@ -184,10 +185,8 @@ private:
   volatile uint8_t transmitBuffer[SS_MAX_TX_BUFF];
 
   // Static Data
-  static SoftSerial *interruptObject1; // This looks inefficient
-  // but it reduces
-  static SoftSerial *interruptObject2; // interrupt latency a
-  // small amount
+  static SoftSerial *interruptObject1; // This looks inefficient but it reduces
+  static SoftSerial *interruptObject2; // interrupt latency a small amount
   static SoftSerial *interruptObject3;
   static SoftSerial *interruptObject4;
 
@@ -245,15 +244,9 @@ private:
 
 public:
   // Public Methods
-  SoftSerial (int receivePinT, int transmitPinT, uint8_t rxtxTimerT	/* , 
-									 * bool 
-									 * inverseLogic 
-									 */ );
-
-  SoftSerial (int receivePinT, int transmitPinT, uint8_t rxtxTimerT, uint8_t tx_channel, uint8_t rx_channel	/* , 
-														 * bool 
-														 * inverseLogic 
-														 */ );
+  SoftSerial(int receivePinT, int transmitPinT, uint8_t rxtxTimerT);
+  SoftSerial(int receivePinT, int transmitPinT, uint8_t rxtxTimerT,
+             uint8_t tx_channel, uint8_t rx_channel);
 
   ~SoftSerial();
 
