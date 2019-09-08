@@ -1,4 +1,9 @@
 # SoftSerial
+
+It's a FORK of Ron Curry's https://github.com/wingspinner/SoftSerialIntAP repo
+
+###
+
 Interrupt Driven Software Serial Library for STM32Duino - Use any GPIO
 
 * Multi-instance Software Serial Library for STM32Duino
