@@ -17,7 +17,7 @@ Features:
 - Any GPIO pin may be used for tx or rx (hence the AP libray name suffix)
 - Circular buffers on both send and receive.
 - Works up to 115,200 baud
-    (for maple core, HAL based official core supports up to 57600 //by stas2z)
+    (for maple core, for HAL based official 115200 is not stable due to heavy HAL/HardwareTimer implementation //by stas2z)
 - Member functions compatible with Hardware Serial and Arduino NewSoftSerial Libs
 - Extensions for non-blocking read and transmit control
 - Supports up to 4 ports (one timer used per port) without modification.
