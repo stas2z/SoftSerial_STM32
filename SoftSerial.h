@@ -3,7 +3,7 @@
 #if defined(STM32GENERIC)
 #define BGEN
 #warning STM32GENERIC support still wip
-#elif defined(__STM32F1__)
+#elif defined(__STM32F1__) || defined(__STM32F4__)
 #define BMAP
 #elif defined(ARDUINO_ARCH_STM32)
 #define BHAL
@@ -106,9 +106,18 @@ License
 /******************************************************************************
  * Definitions
  ******************************************************************************/
-#define DEBUG_DELAY 0
+#ifndef DEBUG_DELAY
+#define DEBUG_DELAY 1
+#endif
+
+#ifndef DEBUG_OUT
+#define DEBUG_OUT 0
+#endif
+
+#if DEBUG_OUT
 #define DEBUG_PIN 17
 #define DEBUG_PIN1 18
+#endif
 
 #ifdef BHAL
 #define HTIM HardwareTimer *

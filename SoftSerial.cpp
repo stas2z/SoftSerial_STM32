@@ -719,7 +719,7 @@ void SoftSerial::txNextBit(HTIM) {
     // Bump the bit/state counter to state 8
     ++txBitCount;
 
-#if DEBUG_DELAY
+#if DEBUG_OUT
     _writepin(DEBUG_PIN1, 1);
     _writepin(DEBUG_PIN1, 0);
 #endif
@@ -796,7 +796,7 @@ __always_inline void SoftSerial::rxNextBit(HTIM) {
     if (_readrx())
       receiveBuffer[receiveBufferWrite] |= 0x80;
 
-#if DEBUG_DELAY
+#if DEBUG_OUT
     _writepin(DEBUG_PIN, 1);
     _writepin(DEBUG_PIN, 0);
 #endif
@@ -827,7 +827,8 @@ __always_inline void SoftSerial::rxNextBit(HTIM) {
 #if DEBUG_DELAY
       overFlowTail = receiveBufferWrite;
       overFlowHead = receiveBufferRead;
-
+#endif
+#if DEBUG_OUT
       _writepin(DEBUG_PIN1, 1);
       _writepin(DEBUG_PIN1, 0);
 #endif
@@ -856,7 +857,7 @@ void SoftSerial::begin(uint32_t tBaud) {
   pinMode(receivePin, INPUT_PULLUP);
   pinMode(transmitPin, OUTPUT);
 
-#if DEBUG_DELAY
+#if DEBUG_OUT
   pinMode(DEBUG_PIN, OUTPUT);
   _writepin(DEBUG_PIN, 0);
   pinMode(DEBUG_PIN1, OUTPUT);
@@ -868,9 +869,9 @@ void SoftSerial::begin(uint32_t tBaud) {
 
   T_PAUSE();
 
-#define DIV 24
+#define DIV 16
   bitPeriod = (uint16_t)(((uint32_t)(T_TIMFREQ()) / DIV) / tBaud);
-  startBitPeriod = bitPeriod + (bitPeriod / 2) - (320 / DIV);
+  startBitPeriod = bitPeriod;
   T_SPSCALE(DIV);
   T_SETOF(TIMER_MAX_COUNT);
 
