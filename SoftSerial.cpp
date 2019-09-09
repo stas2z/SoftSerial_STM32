@@ -343,8 +343,8 @@ void SoftSerial::print_counters(Stream *S) {
              ", rxedge=" + String(rxedgec) + ", txbit=" + String(txbitc));
 }
 
-__always_inline void SoftSerial::init_timer_values(uint8_t TX_CHANNEL,
-                                                   uint8_t RX_CHANNEL) {
+__always_inline void SoftSerial::init_timer_values(uint8_t RX_CHANNEL,
+                                                   uint8_t TX_CHANNEL) {
   // reset counters
   rxbitc = rxedgec = txbitc = 0;
   s_dbg[0] = '\0';
@@ -649,8 +649,8 @@ void SoftSerial::setInterruptObject(uint8_t timerNumber) {
  ******************************************************************************/
 // Constructor
 SoftSerial::SoftSerial(int receivePinT = 15, int transmitPinT = 16,
-                       uint8_t rxtxTimerT = 1, uint8_t tx_channel = _TX_CHANNEL,
-                       uint8_t rx_channel = _RX_CHANNEL)
+                       uint8_t rxtxTimerT = 1, uint8_t rx_channel = _RX_CHANNEL,
+                       uint8_t tx_channel = _TX_CHANNEL)
     : receivePin(receivePinT), transmitPin(transmitPinT),
 #ifndef BGEN
       timerSerial(TIMS(rxtxTimerT)),
@@ -658,7 +658,7 @@ SoftSerial::SoftSerial(int receivePinT = 15, int transmitPinT = 16,
       timerSerialP(TIMS(rxtxTimerT)),
 #endif
       rxtxTimer(rxtxTimerT) {
-  init_timer_values(tx_channel, rx_channel);
+  init_timer_values(rx_channel, tx_channel);
 
   // Setup ISR pointer for this instance and timer (one timer per
   // instance)
@@ -675,7 +675,7 @@ SoftSerial::SoftSerial(int receivePinT = 15, int transmitPinT = 16,
       timerSerialP(TIMS(rxtxTimerT)),
 #endif
       rxtxTimer(rxtxTimerT) {
-  init_timer_values(_TX_CHANNEL, _RX_CHANNEL);
+  init_timer_values(_RX_CHANNEL, _TX_CHANNEL);
 
   // Setup ISR pointer for this instance and timer (one timer per
   // instance)
@@ -869,7 +869,6 @@ void SoftSerial::begin(uint32_t tBaud) {
   T_PAUSE();
 
 #define DIV 24
-
   bitPeriod = (uint16_t)(((uint32_t)(T_TIMFREQ()) / DIV) / tBaud);
   startBitPeriod = bitPeriod + (bitPeriod / 2) - (320 / DIV);
   T_SPSCALE(DIV);

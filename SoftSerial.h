@@ -236,7 +236,7 @@ private:
   inline void rxNextBit(HTIM) __attribute__((__always_inline__));
   inline void txNextBit(HTIM) __attribute__((__always_inline__));
   inline uint16_t isTXInterruptEnabled() __attribute__((__always_inline__));
-  inline void init_timer_values(uint8_t TX_CHANNEL, uint8_t RX_CHANNEL);
+  inline void init_timer_values(uint8_t RX_CHANNEL, uint8_t TX_CHANNEL);
 
   void setInterruptObject(uint8_t timerNumber);
 
@@ -246,7 +246,7 @@ public:
   // Public Methods
   SoftSerial(int receivePinT, int transmitPinT, uint8_t rxtxTimerT);
   SoftSerial(int receivePinT, int transmitPinT, uint8_t rxtxTimerT,
-             uint8_t tx_channel, uint8_t rx_channel);
+             uint8_t rx_channel, uint8_t tx_channel);
 
   ~SoftSerial();
 
