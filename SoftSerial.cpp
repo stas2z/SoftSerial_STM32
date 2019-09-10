@@ -905,20 +905,28 @@ void SoftSerial::begin(uint32_t tBaud) {
   // Load the timer values and start it
   T_RFR();
   T_RESUM();
+
 #ifndef BMAP
   // timer IRQ priority hack
-  static const IRQn_Type irqtim[4] = {TIM1_UP_IRQn, TIM2_IRQn, TIM3_IRQn,
-                                      TIM4_IRQn};
+  static const IRQn_Type irqtim[4] = {getTimerUpIrq(TIM1), getTimerUpIrq(TIM2),
+                                      getTimerUpIrq(TIM3), getTimerUpIrq(TIM4)};
+  static const IRQn_Type ccirqtim[4] = {
+      getTimerCCIrq(TIM1), getTimerCCIrq(TIM2), getTimerCCIrq(TIM3),
+      getTimerCCIrq(TIM4)};
+  bool haveCCIrq = (irqtim[rxtxTimer - 1] != ccirqtim[rxtxTimer - 1]);
+
   NVIC_DisableIRQ(irqtim[rxtxTimer - 1]);
-  if (rxtxTimer == 1)
-    NVIC_DisableIRQ(TIM1_CC_IRQn);
+  if (haveCCIrq)
+    NVIC_DisableIRQ(ccirqtim[rxtxTimer - 1]);
   NVIC_SetPriority(irqtim[rxtxTimer - 1], 0);
-  if (rxtxTimer == 1)
-    NVIC_SetPriority(TIM1_CC_IRQn, 0);
+  if (haveCCIrq)
+    NVIC_SetPriority(ccirqtim[rxtxTimer - 1], 0);
   NVIC_EnableIRQ(irqtim[rxtxTimer - 1]);
-  if (rxtxTimer == 1)
-    NVIC_EnableIRQ(TIM1_CC_IRQn);
+  if (haveCCIrq)
+    NVIC_EnableIRQ(ccirqtim[rxtxTimer - 1]);
+
   CLEAR_BIT(timerSerialDEV->DIER, TIM_DIER_UIE);
+
 #endif
 
   // Set start bit interrupt and priority and leave it enabled to rx
